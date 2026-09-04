@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket to Ride Europe Online Tracker</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1e2127;
+    --panel2: #23262c;
+    --line: #2c3037;
+    --text: #e9e7e2;
+    --muted: #8b8f98;
+    --accent: #c9a24b;
+    --green: #4f9b6e;
+    --red: #b5504f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+    padding-bottom: 70px;
+  }
+  h1 { font-size: 1.3rem; color: var(--accent); margin: 0 0 4px 0; }
+  h2 { font-size: 1rem; color: var(--accent); margin: 14px 0 8px 0; }
+  p.sub { color: var(--muted); font-size: 0.82rem; margin: 0 0 14px 0; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  input[type=text] {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+  button {
+    background: var(--accent);
+    border: none;
+    color: #000000;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 7px;
+  }
+  button.secondary { background: var(--panel2); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  button.small { padding: 5px 9px; font-size: 0.74rem; width: auto; margin: 0; font-weight: 800; }
+  button.green { background: var(--green); color: #ffffff; }
+  button:disabled { opacity: 0.35; }
+  .small { font-size: 0.76rem; color: var(--muted); }
+  .center { text-align: center; }
+  .roomcode { font-size: 2rem; letter-spacing: 6px; text-align: center; color: var(--accent); font-weight: 700; margin: 6px 0; }
+
+  .scoreboard {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 8px 0 10px 0;
+    z-index: 5;
+    margin-bottom: 6px;
+  }
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+  }
+  .score-row.me { border-color: var(--accent); }
+  .score-row .pts { font-weight: 700; color: var(--accent); font-size: 1rem; }
+  .score-row .meta { display: block; color: #c7cad1; font-size: 0.7rem; }
+
+  .nav-row { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+  .nav-row button { width: auto; white-space: nowrap; flex-shrink: 0; }
+  .nav-row button.active { background: var(--green); color: white; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .list-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.85rem;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row .meta { color: #c7cad1; font-size: 0.75rem; }
+  .list-scroll { max-height: 340px; overflow-y: auto; }
+  .tag { font-size: 0.68rem; padding: 2px 7px; border-radius: 20px; background: var(--panel2); color: var(--muted); }
+
+  .final-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+  .final-total { font-weight: 700; color: var(--accent); font-size: 1.3rem; }
+</style>
+</head>
+<body>
+
+<h1>🚂 Ticket to Ride: Europe</h1>
+<p class="sub" id="topSub">Play a live scored game with friends, each on your own phone.</p>
+
+<!-- LANDING -->
+<div id="screen-landing" class="screen active">
+  <div class="card">
+    <h2 style="margin-top:0">Your name</h2>
+    <input type="text" id="nameInput" placeholder="Enter your name" maxlength="16">
+  </div>
+  <div class="card">
+    <button onclick="createGame()">Create Game</button>
+  </div>
+  <div class="card">
+    <input type="text" id="joinCodeInput" placeholder="Room code" maxlength="4" style="text-transform:uppercase">
+    <button class="secondary" onclick="joinGame()">Join Game</button>
+  </div>
+  <p class="small center" id="landingError"></p>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen">
+  <div class="card center">
+    <p class="small">Room code — share this with your friends</p>
+    <div class="roomcode" id="lobbyCode">----</div>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Players</h2>
+    <div id="lobbyPlayerList"></div>
+  </div>
+  <div id="hostStartBox" class="card" style="display:none">
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div id="waitBox" class="card center" style="display:none">
+    <p class="small">Waiting for the host to start the game...</p>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <div class="scoreboard" id="scoreboard"></div>
+
+  <div class="nav-row">
+    <button onclick="showPanel('routes')" id="nav-routes">Claim Route</button>
+    <button onclick="showPanel('tickets')" id="nav-tickets">My Tickets</button>
+    <button onclick="showPanel('stations')" id="nav-stations">Stations</button>
+    <button onclick="showPanel('log')" id="nav-log">Log</button>
+    <button onclick="showPanel('end')" id="nav-end">End Game</button>
+  </div>
+
+  <!-- ROUTES -->
+  <div class="panel" id="panel-routes">
+    <div class="card">
+      <h2 style="margin-top:0">Claim a Route</h2>
+      <input type="text" id="routeSearch" placeholder="Search a city (e.g. Paris)" oninput="renderRouteList()">
+      <div class="list-scroll" id="routeList"></div>
+    </div>
+  </div>
+
+  <!-- TICKETS (private, mine only) -->
+  <div class="panel" id="panel-tickets">
+    <div class="card">
+      <h2 style="margin-top:0">Add a Destination Ticket</h2>
+      <p class="small">Only you can see your tickets — this is enforced by the server, not just hidden on screen.</p>
+      <input type="text" id="ticketSearch" placeholder="Search a city" oninput="renderTicketPicker()">
+      <div class="list-scroll" id="ticketPicker"></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">My Tickets</h2>
+      <div id="myTicketsList"></div>
+    </div>
+  </div>
+
+  <!-- STATIONS -->
+  <div class="panel" id="panel-stations">
+    <div class="card">
+      <h2 style="margin-top:0">Train Stations</h2>
+      <p class="small">Everyone starts with 3. Unused stations are worth 4 points each at game end.</p>
+      <div id="stationList"></div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="panel" id="panel-log">
+    <div class="card">
+      <h2 style="margin-top:0">Game Log</h2>
+      <p class="small">Public actions only — routes and stations. Ticket activity never appears here.</p>
+      <div class="list-scroll" id="logList"></div>
+    </div>
+  </div>
+
+  <!-- END GAME -->
+  <div class="panel" id="panel-end">
+    <div class="card" id="preRevealBox">
+      <h2 style="margin-top:0">Ready to end the game?</h2>
+      <p class="small">This reveals everyone's destination tickets to the whole group. Only do this once the game is actually finished.</p>
+      <button class="green" onclick="endGame()">End Game & Reveal Tickets</button>
+    </div>
+    <div id="postRevealBox" style="display:none">
+      <div class="card">
+        <h2 style="margin-top:0">Longest Continuous Path</h2>
+        <p class="small">Calculated from each player's claimed routes (by total train cars). Confirm who actually has the longest on the board.</p>
+        <div id="longestPathList"></div>
+      </div>
+      <div class="card" id="finalScoresCard">
+        <h2 style="margin-top:0">Final Scores</h2>
+        <div id="finalScoresList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script>
+// ====== PASTE YOUR FIREBASE CONFIG HERE ======
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+// ==============================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let uid = null;
+let gameCode = null;
+let isHost = false;
+let playerName = "";
+let gameData = null;
+let gameRef = null;
+let myTickets = {}; // pushId -> {ticketId, completed} — private, mine only
+let revealedTickets = {}; // uid -> {pushId: {ticketId, completed}} — only populated after End Game
+
+const SCORE_TABLE = { 1: 1, 2: 2, 3: 4, 4: 7, 6: 15, 8: 21 };
+const STARTING_STATIONS = 3;
+
+const ROUTES = [
+  {a:"Edinburgh",b:"London",length:4,color:"Black"},
+  {a:"Edinburgh",b:"London",length:4,color:"Orange"},
+  {a:"London",b:"Amsterdam",length:2,color:"Grey"},
+  {a:"London",b:"Dieppe",length:2,color:"Grey"},
+  {a:"London",b:"Dieppe",length:2,color:"Grey"},
+  {a:"Dieppe",b:"Brest",length:2,color:"Orange"},
+  {a:"Dieppe",b:"Paris",length:1,color:"Pink"},
+  {a:"Dieppe",b:"Bruxelles",length:2,color:"Green"},
+  {a:"Brest",b:"Paris",length:3,color:"Black"},
+  {a:"Brest",b:"Pamplona",length:4,color:"Pink"},
+  {a:"Paris",b:"Pamplona",length:4,color:"Blue"},
+  {a:"Paris",b:"Pamplona",length:4,color:"Green"},
+  {a:"Paris",b:"Bruxelles",length:2,color:"Yellow"},
+  {a:"Paris",b:"Bruxelles",length:2,color:"Red"},
+  {a:"Paris",b:"Frankfurt",length:3,color:"White"},
+  {a:"Paris",b:"Frankfurt",length:3,color:"Orange"},
+  {a:"Paris",b:"Zurich",length:3,color:"Grey"},
+  {a:"Paris",b:"Marseille",length:4,color:"Grey"},
+  {a:"Pamplona",b:"Madrid",length:3,color:"Black"},
+  {a:"Pamplona",b:"Madrid",length:3,color:"White"},
+  {a:"Pamplona",b:"Barcelona",length:2,color:"Grey"},
+  {a:"Pamplona",b:"Marseille",length:4,color:"Red"},
+  {a:"Madrid",b:"Lisboa",length:3,color:"Pink"},
+  {a:"Madrid",b:"Cadiz",length:3,color:"Orange"},
+  {a:"Madrid",b:"Barcelona",length:2,color:"Yellow"},
+  {a:"Lisboa",b:"Cadiz",length:2,color:"Blue"},
+  {a:"Barcelona",b:"Marseille",length:4,color:"Grey"},
+  {a:"Marseille",b:"Zurich",length:2,color:"Pink"},
+  {a:"Marseille",b:"Roma",length:4,color:"Grey"},
+  {a:"Zurich",b:"Munchen",length:2,color:"Yellow"},
+  {a:"Zurich",b:"Venezia",length:2,color:"Green"},
+  {a:"Munchen",b:"Frankfurt",length:2,color:"Pink"},
+  {a:"Munchen",b:"Venezia",length:2,color:"Blue"},
+  {a:"Munchen",b:"Wien",length:3,color:"Orange"},
+  {a:"Venezia",b:"Roma",length:2,color:"Black"},
+  {a:"Venezia",b:"Zagrab",length:2,color:"Grey"},
+  {a:"Roma",b:"Palermo",length:4,color:"Grey"},
+  {a:"Roma",b:"Brindisi",length:2,color:"White"},
+  {a:"Palermo",b:"Brindisi",length:3,color:"Grey"},
+  {a:"Palermo",b:"Smyrna",length:6,color:"Grey"},
+  {a:"Brindisi",b:"Athina",length:4,color:"Grey"},
+  {a:"Bruxelles",b:"Amsterdam",length:1,color:"Black"},
+  {a:"Bruxelles",b:"Frankfurt",length:2,color:"Blue"},
+  {a:"Amsterdam",b:"Essen",length:3,color:"Yellow"},
+  {a:"Amsterdam",b:"Frankfurt",length:2,color:"White"},
+  {a:"Frankfurt",b:"Essen",length:2,color:"Green"},
+  {a:"Frankfurt",b:"Berlin",length:3,color:"Black"},
+  {a:"Frankfurt",b:"Berlin",length:3,color:"Red"},
+  {a:"Essen",b:"Berlin",length:2,color:"Blue"},
+  {a:"Essen",b:"Kobenhavn",length:3,color:"Grey"},
+  {a:"Essen",b:"Kobenhavn",length:3,color:"Grey"},
+  {a:"Berlin",b:"Danzig",length:4,color:"Grey"},
+  {a:"Berlin",b:"Warszawa",length:4,color:"Pink"},
+  {a:"Berlin",b:"Warszawa",length:4,color:"Yellow"},
+  {a:"Berlin",b:"Wien",length:3,color:"Green"},
+  {a:"Wien",b:"Zagrab",length:2,color:"Grey"},
+  {a:"Wien",b:"Budapest",length:1,color:"Red"},
+  {a:"Wien",b:"Budapest",length:1,color:"White"},
+  {a:"Wien",b:"Warszawa",length:4,color:"Blue"},
+  {a:"Zagrab",b:"Budapest",length:2,color:"Orange"},
+  {a:"Zagrab",b:"Sarajevo",length:3,color:"Red"},
+  {a:"Budapest",b:"Kyiv",length:6,color:"Grey"},
+  {a:"Budapest",b:"Bucuresti",length:4,color:"Grey"},
+  {a:"Budapest",b:"Sarajevo",length:3,color:"Pink"},
+  {a:"Sarajevo",b:"Athina",length:4,color:"Green"},
+  {a:"Sarajevo",b:"Sofia",length:2,color:"Grey"},
+  {a:"Sofia",b:"Bucuresti",length:2,color:"Grey"},
+  {a:"Sofia",b:"Constantinople",length:3,color:"Blue"},
+  {a:"Sofia",b:"Athina",length:3,color:"Pink"},
+  {a:"Athina",b:"Smyrna",length:2,color:"Grey"},
+  {a:"Constantinople",b:"Smyrna",length:2,color:"Grey"},
+  {a:"Constantinople",b:"Angora",length:2,color:"Grey"},
+  {a:"Constantinople",b:"Bucuresti",length:3,color:"Yellow"},
+  {a:"Constantinople",b:"Sevastopol",length:4,color:"Grey"},
+  {a:"Smyrna",b:"Angora",length:3,color:"Orange"},
+  {a:"Angora",b:"Erzurum",length:3,color:"Black"},
+  {a:"Erzurum",b:"Sevastopol",length:4,color:"Grey"},
+  {a:"Erzurum",b:"Sochi",length:3,color:"Red"},
+  {a:"Bucuresti",b:"Sevastopol",length:4,color:"White"},
+  {a:"Bucuresti",b:"Kyiv",length:4,color:"Grey"},
+  {a:"Sevastopol",b:"Sochi",length:2,color:"Grey"},
+  {a:"Sevastopol",b:"Rostov",length:4,color:"Grey"},
+  {a:"Sochi",b:"Rostov",length:2,color:"Grey"},
+  {a:"Rostov",b:"Kharkov",length:2,color:"Green"},
+  {a:"Kyiv",b:"Warszawa",length:4,color:"Grey"},
+  {a:"Kyiv",b:"Wilno",length:2,color:"Grey"},
+  {a:"Kyiv",b:"Smolensk",length:3,color:"Red"},
+  {a:"Kyiv",b:"Kharkov",length:4,color:"Grey"},
+  {a:"Warszawa",b:"Danzig",length:2,color:"Grey"},
+  {a:"Warszawa",b:"Wilno",length:3,color:"Red"},
+  {a:"Wilno",b:"Riga",length:4,color:"Green"},
+  {a:"Wilno",b:"Petrograd",length:4,color:"Blue"},
+  {a:"Wilno",b:"Smolensk",length:3,color:"Yellow"},
+  {a:"Kharkov",b:"Moskva",length:4,color:"Grey"},
+  {a:"Moskva",b:"Smolensk",length:2,color:"Orange"},
+  {a:"Moskva",b:"Petrograd",length:4,color:"White"},
+  {a:"Kobenhavn",b:"Stockholm",length:3,color:"Yellow"},
+  {a:"Kobenhavn",b:"Stockholm",length:3,color:"White"},
+  {a:"Stockholm",b:"Petrograd",length:8,color:"Grey"},
+  {a:"Riga",b:"Danzig",length:3,color:"Black"},
+  {a:"Riga",b:"Petrograd",length:4,color:"Grey"}
+].map((r, i) => ({ ...r, id: i }));
+
+const DESTINATION_TICKETS = [
+  {a:"Amsterdam",b:"Pamplona",points:7},
+  {a:"Amsterdam",b:"Wilno",points:12},
+  {a:"Angora",b:"Kharkov",points:10},
+  {a:"Athina",b:"Angora",points:5},
+  {a:"Athina",b:"Wilno",points:11},
+  {a:"Barcelona",b:"Bruxelles",points:8},
+  {a:"Barcelona",b:"Munchen",points:8},
+  {a:"Berlin",b:"Bucuresti",points:8},
+  {a:"Berlin",b:"Moskva",points:12},
+  {a:"Berlin",b:"Roma",points:9},
+  {a:"Brest",b:"Marseille",points:7},
+  {a:"Brest",b:"Petrograd",points:20},
+  {a:"Brest",b:"Venezia",points:8},
+  {a:"Bruxelles",b:"Danzig",points:9},
+  {a:"Budapest",b:"Sofia",points:5},
+  {a:"Cadiz",b:"Stockholm",points:21},
+  {a:"Edinburgh",b:"Athina",points:21},
+  {a:"Edinburgh",b:"Paris",points:7},
+  {a:"Essen",b:"Kyiv",points:10},
+  {a:"Frankfurt",b:"Kobenhavn",points:5},
+  {a:"Frankfurt",b:"Smolensk",points:13},
+  {a:"Kobenhavn",b:"Erzurum",points:21},
+  {a:"Kyiv",b:"Petrograd",points:6},
+  {a:"Kyiv",b:"Sochi",points:8},
+  {a:"Lisboa",b:"Danzig",points:20},
+  {a:"London",b:"Berlin",points:7},
+  {a:"London",b:"Wien",points:10},
+  {a:"Madrid",b:"Dieppe",points:8},
+  {a:"Madrid",b:"Zurich",points:8},
+  {a:"Marseille",b:"Essen",points:8},
+  {a:"Palermo",b:"Constantinople",points:8},
+  {a:"Palermo",b:"Moskva",points:20},
+  {a:"Paris",b:"Wien",points:8},
+  {a:"Paris",b:"Zagrab",points:7},
+  {a:"Riga",b:"Bucuresti",points:10},
+  {a:"Roma",b:"Smyrna",points:8},
+  {a:"Rostov",b:"Erzurum",points:5},
+  {a:"Sarajevo",b:"Sevastopol",points:8},
+  {a:"Smolensk",b:"Rostov",points:8},
+  {a:"Sofia",b:"Smyrna",points:5},
+  {a:"Stockholm",b:"Wien",points:11},
+  {a:"Venezia",b:"Constantinople",points:10},
+  {a:"Warszawa",b:"Smolensk",points:6},
+  {a:"Zagrab",b:"Brindisi",points:6},
+  {a:"Zurich",b:"Brindisi",points:6},
+  {a:"Zurich",b:"Budapest",points:6}
+].map((t, i) => ({ ...t, id: i }));
+
+function escapeHtml(str) { const d = document.createElement("div"); d.textContent = str; return d.innerHTML; }
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+function showError(msg) { document.getElementById("landingError").textContent = msg; }
+
+auth.onAuthStateChanged(user => { if (user) uid = user.uid; });
+auth.signInAnonymously().catch(e => showError("Connection error: " + e.message));
+
+function genRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+// ---------- CREATE / JOIN ----------
+function createGame() {
+  playerName = document.getElementById("nameInput").value.trim();
+  if (!playerName) return showError("Enter your name first.");
+  if (!uid) return showError("Still connecting, try again in a second.");
+  gameCode = genRoomCode();
+  isHost = true;
+  gameRef = db.ref("games/" + gameCode);
+  gameRef.set({
+    hostUid: uid,
+    status: "lobby",
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    players: {
+      [uid]: { name: playerName, stationsLeft: STARTING_STATIONS, claimedRouteIds: {} }
+    },
+    log: { init: { text: "Game created.", ts: firebase.database.ServerValue.TIMESTAMP } }
+  }).then(() => attachListeners()).catch(e => showError("Could not create game: " + e.message));
+}
+
+function joinGame() {
+  playerName = document.getElementById("nameInput").value.trim();
+  const code = document.getElementById("joinCodeInput").value.trim().toUpperCase();
+  if (!playerName) return showError("Enter your name first.");
+  if (!code) return showError("Enter a room code.");
+  if (!uid) return showError("Still connecting, try again in a second.");
+  gameRef = db.ref("games/" + code);
+  gameRef.once("value").then(snap => {
+    const data = snap.val();
+    if (!data) return showError("No game found with that code.");
+    if (data.status === "ended") return showError("That game has already ended.");
+    gameCode = code;
+    isHost = false;
+    return gameRef.child("players/" + uid).set({ name: playerName, stationsLeft: STARTING_STATIONS, claimedRouteIds: {} });
+  }).then(() => { if (gameCode) attachListeners(); })
+    .catch(e => showError("Could not join: " + e.message));
+}
+
+// ---------- LISTENERS ----------
+function attachListeners() {
+  gameRef.on("value", snap => {
+    gameData = snap.val();
+    if (!gameData) return;
+    if (gameData.hostUid === uid) isHost = true;
+    render();
+  });
+  db.ref("secrets/" + gameCode + "/tickets/" + uid).on("value", snap => {
+    myTickets = snap.val() || {};
+    if (gameData) renderMyTicketsList();
+  });
+}
+
+// ---------- MAIN ROUTER ----------
+function render() {
+  if (!gameData) return;
+  document.getElementById("topSub").textContent = "Room " + gameCode;
+  if (gameData.status === "lobby") renderLobby();
+  else showScreen("screen-game"), renderGameScreen();
+}
+
+// ---------- LOBBY ----------
+function renderLobby() {
+  showScreen("screen-lobby");
+  document.getElementById("lobbyCode").textContent = gameCode;
+  const players = gameData.players || {};
+  document.getElementById("lobbyPlayerList").innerHTML = Object.values(players).map(p =>
+    `<div class="list-row">${escapeHtml(p.name)}</div>`
+  ).join("") || `<p class="small">No players yet.</p>`;
+  document.getElementById("hostStartBox").style.display = isHost ? "block" : "none";
+  document.getElementById("waitBox").style.display = isHost ? "none" : "block";
+}
+
+function startGame() {
+  gameRef.update({ status: "playing" });
+}
+
+// ---------- SCORING HELPERS ----------
+function routePointsFor(player) {
+  const claimed = player.claimedRouteIds || {};
+  return Object.keys(claimed).reduce((sum, rid) => {
+    const route = ROUTES[rid];
+    return sum + (route ? SCORE_TABLE[route.length] : 0);
+  }, 0);
+}
+function stationBonusFor(player) { return (player.stationsLeft ?? STARTING_STATIONS) * 4; }
+function publicScoreFor(player) { return routePointsFor(player) + stationBonusFor(player); }
+
+function computeLongestPath(claimedRouteIdsObj) {
+  const routeIds = Object.keys(claimedRouteIdsObj || {}).map(Number);
+  const adj = {};
+  routeIds.forEach(rid => {
+    const r = ROUTES[rid];
+    if (!r) return;
+    if (!adj[r.a]) adj[r.a] = [];
+    if (!adj[r.b]) adj[r.b] = [];
+    adj[r.a].push({ to: r.b, length: r.length, id: r.id });
+    adj[r.b].push({ to: r.a, length: r.length, id: r.id });
+  });
+  let best = 0;
+  const used = new Set();
+  function dfs(city, total) {
+    if (total > best) best = total;
+    (adj[city] || []).forEach(edge => {
+      if (used.has(edge.id)) return;
+      used.add(edge.id);
+      dfs(edge.to, total + edge.length);
+      used.delete(edge.id);
+    });
+  }
+  Object.keys(adj).forEach(city => dfs(city, 0));
+  return best;
+}
+
+// ---------- GAME SCREEN ----------
+function renderGameScreen() {
+  renderScoreboard();
+  if (gameData.status === "ended") {
+    showPanel("end");
+    document.getElementById("preRevealBox").style.display = "none";
+    document.getElementById("postRevealBox").style.display = "block";
+    fetchAllTicketsForReveal().then(() => {
+      renderLongestPathList();
+      renderFinalScores();
+    });
+  } else {
+    document.querySelectorAll(".nav-row button").forEach(b => { if (!document.querySelector(".panel.active")) b.classList.remove("active"); });
+    if (!document.querySelector(".panel.active")) showPanel("routes");
+    else {
+      renderRouteList();
+      renderTicketPicker();
+      renderMyTicketsList();
+      renderStationList();
+      renderLog();
+    }
+  }
+}
+
+function showPanel(name) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.getElementById("panel-" + name).classList.add("active");
+  document.querySelectorAll(".nav-row button").forEach(b => b.classList.remove("active"));
+  document.getElementById("nav-" + name).classList.add("active");
+  renderRouteList();
+  renderTicketPicker();
+  renderMyTicketsList();
+  renderStationList();
+  renderLog();
+}
+
+function renderScoreboard() {
+  const players = gameData.players || {};
+  document.getElementById("scoreboard").innerHTML = Object.entries(players).map(([pid, p]) => `
+    <div class="score-row ${pid === uid ? "me" : ""}">
+      <span>${escapeHtml(p.name)}${pid === uid ? " (you)" : ""}<span class="meta">routes + stations only</span></span>
+      <span class="pts">${publicScoreFor(p)}</span>
+    </div>
+  `).join("");
+}
+
+// ---------- ROUTES ----------
+function renderRouteList() {
+  const searchEl = document.getElementById("routeSearch");
+  if (!searchEl) return;
+  const search = (searchEl.value || "").toLowerCase();
+  const players = gameData.players || {};
+  const filtered = ROUTES.filter(r => r.a.toLowerCase().includes(search) || r.b.toLowerCase().includes(search));
+  document.getElementById("routeList").innerHTML = filtered.map(r => {
+    let owner = null;
+    Object.entries(players).forEach(([pid, p]) => { if (p.claimedRouteIds && p.claimedRouteIds[r.id]) owner = pid; });
+    const pts = SCORE_TABLE[r.length];
+    if (owner) {
+      const ownerName = players[owner] ? players[owner].name : "?";
+      if (owner === uid) {
+        return `<div class="list-row"><span>${escapeHtml(r.a)} – ${escapeHtml(r.b)} <span class="meta">(${r.length}, ${r.color}, ${pts}pts)</span></span><button class="small secondary" onclick="unclaimRoute(${r.id})">Undo (yours)</button></div>`;
+      }
+      return `<div class="list-row"><span>${escapeHtml(r.a)} – ${escapeHtml(r.b)} <span class="meta">(${r.length}, ${r.color}, ${pts}pts)</span></span><span class="tag">🔒 ${escapeHtml(ownerName)}</span></div>`;
+    }
+    return `<div class="list-row"><span>${escapeHtml(r.a)} – ${escapeHtml(r.b)} <span class="meta">(${r.length}, ${r.color}, ${pts}pts)</span></span><button class="small" onclick="claimRoute(${r.id})">Claim</button></div>`;
+  }).join("") || `<p class="small">No matching routes.</p>`;
+}
+
+function claimRoute(routeId) {
+  const route = ROUTES[routeId];
+  const players = gameData.players || {};
+  let alreadyClaimed = false;
+  Object.values(players).forEach(p => { if (p.claimedRouteIds && p.claimedRouteIds[routeId]) alreadyClaimed = true; });
+  if (alreadyClaimed || !route) return;
+  const updates = {};
+  updates["players/" + uid + "/claimedRouteIds/" + routeId] = true;
+  updates["log/entry_" + Date.now()] = { text: `${gameData.players[uid].name} claimed ${route.a} – ${route.b} (${route.length}, ${route.color}) for ${SCORE_TABLE[route.length]} pts.`, ts: firebase.database.ServerValue.TIMESTAMP };
+  gameRef.update(updates);
+}
+
+function unclaimRoute(routeId) {
+  const route = ROUTES[routeId];
+  const updates = {};
+  updates["players/" + uid + "/claimedRouteIds/" + routeId] = null;
+  updates["log/entry_" + Date.now()] = { text: `${gameData.players[uid].name} undid claim: ${route.a} – ${route.b} (${route.length}, ${route.color}). Route unlocked.`, ts: firebase.database.ServerValue.TIMESTAMP };
+  gameRef.update(updates);
+}
+
+// ---------- MY TICKETS (private) ----------
+function renderTicketPicker() {
+  const searchEl = document.getElementById("ticketSearch");
+  if (!searchEl) return;
+  const search = (searchEl.value || "").toLowerCase();
+  const filtered = DESTINATION_TICKETS.filter(t => t.a.toLowerCase().includes(search) || t.b.toLowerCase().includes(search));
+  document.getElementById("ticketPicker").innerHTML = filtered.map(t =>
+    `<div class="list-row"><span>${escapeHtml(t.a)} – ${escapeHtml(t.b)} <span class="meta">(${t.points}pts)</span></span><button class="small" onclick="addTicket(${t.id})">Add</button></div>`
+  ).join("") || `<p class="small">No matching tickets.</p>`;
+}
+
+function addTicket(ticketId) {
+  const ref = db.ref("secrets/" + gameCode + "/tickets/" + uid).push();
+  ref.set({ ticketId, completed: false });
+}
+
+function toggleTicketCompleted(pushId, completed) {
+  db.ref("secrets/" + gameCode + "/tickets/" + uid + "/" + pushId + "/completed").set(!completed);
+}
+
+function removeTicket(pushId) {
+  db.ref("secrets/" + gameCode + "/tickets/" + uid + "/" + pushId).remove();
+}
+
+function renderMyTicketsList() {
+  const el = document.getElementById("myTicketsList");
+  if (!el) return;
+  const entries = Object.entries(myTickets);
+  el.innerHTML = entries.map(([pushId, t]) => {
+    const ticket = DESTINATION_TICKETS[t.ticketId];
+    if (!ticket) return "";
+    return `<div class="list-row">
+      <span>${escapeHtml(ticket.a)} – ${escapeHtml(ticket.b)} <span class="meta">(${ticket.points}pts)</span></span>
+      <span>
+        <button class="small ${t.completed ? "green" : "secondary"}" onclick="toggleTicketCompleted('${pushId}', ${!!t.completed})">${t.completed ? "Completed" : "Mark Done"}</button>
+        <button class="small secondary" onclick="removeTicket('${pushId}')">✕</button>
+      </span>
+    </div>`;
+  }).join("") || `<p class="small">No tickets yet.</p>`;
+}
+
+// ---------- STATIONS ----------
+function renderStationList() {
+  const players = gameData.players || {};
+  document.getElementById("stationList").innerHTML = Object.entries(players).map(([pid, p]) => {
+    const left = p.stationsLeft ?? STARTING_STATIONS;
+    const mine = pid === uid;
+    return `<div class="list-row">
+      <span>${escapeHtml(p.name)}${mine ? " (you)" : ""} <span class="meta">(${left} left \u00d7 4 = ${left * 4}pts)</span></span>
+      ${mine ? `<span>
+        <button class="small secondary" onclick="adjustStations(-1)" ${left <= 0 ? "disabled" : ""}>Place One</button>
+        <button class="small secondary" onclick="adjustStations(1)" ${left >= STARTING_STATIONS ? "disabled" : ""}>Undo</button>
+      </span>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function adjustStations(delta) {
+  const player = gameData.players[uid];
+  const before = player.stationsLeft ?? STARTING_STATIONS;
+  const after = Math.max(0, Math.min(STARTING_STATIONS, before + delta));
+  if (after === before) return;
+  const updates = {};
+  updates["players/" + uid + "/stationsLeft"] = after;
+  updates["log/entry_" + Date.now()] = {
+    text: delta < 0 ? `${player.name} placed a train station.` : `${player.name} undid a station placement.`,
+    ts: firebase.database.ServerValue.TIMESTAMP
+  };
+  gameRef.update(updates);
+}
+
+// ---------- LOG ----------
+function renderLog() {
+  const log = gameData.log || {};
+  const entries = Object.values(log).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  document.getElementById("logList").innerHTML = entries.map(e =>
+    `<div class="list-row">${escapeHtml(e.text)}</div>`
+  ).join("") || `<p class="small">No events yet.</p>`;
+}
+
+// ---------- END GAME ----------
+function endGame() {
+  if (!confirm("End the game and reveal everyone's tickets? Only do this once play is actually finished.")) return;
+  gameRef.update({ status: "ended" });
+}
+
+function fetchAllTicketsForReveal() {
+  const players = gameData.players || {};
+  const promises = Object.keys(players).map(pid =>
+    db.ref("secrets/" + gameCode + "/tickets/" + pid).once("value")
+      .then(snap => { revealedTickets[pid] = snap.val() || {}; })
+      .catch(() => { revealedTickets[pid] = {}; })
+  );
+  return Promise.all(promises);
+}
+
+function ticketPointsFromRevealed(pid) {
+  const tix = revealedTickets[pid] || {};
+  return Object.values(tix).reduce((sum, t) => {
+    const ticket = DESTINATION_TICKETS[t.ticketId];
+    if (!ticket) return sum;
+    return sum + (t.completed ? ticket.points : -ticket.points);
+  }, 0);
+}
+
+function renderLongestPathList() {
+  const players = gameData.players || {};
+  const computed = Object.entries(players).map(([pid, p]) => ({ pid, name: p.name, length: computeLongestPath(p.claimedRouteIds) }));
+  const maxLen = Math.max(0, ...computed.map(c => c.length));
+  const awards = gameData.longestPathAwards || {};
+  document.getElementById("longestPathList").innerHTML = computed.map(c => {
+    if (awards[c.pid] === undefined && c.length === maxLen && maxLen > 0) {
+      gameRef.child("longestPathAwards/" + c.pid).set(true);
+    }
+    const checked = awards[c.pid] ? "checked" : "";
+    return `<div class="list-row">
+      <span>${escapeHtml(c.name)} <span class="meta">(longest chain: ${c.length} cars)</span></span>
+      <label class="small"><input type="checkbox" ${checked} onchange="toggleLongestPathAward('${c.pid}', this.checked)"> Award +10</label>
+    </div>`;
+  }).join("");
+}
+
+function toggleLongestPathAward(pid, checked) {
+  gameRef.child("longestPathAwards/" + pid).set(checked);
+}
+
+function renderFinalScores() {
+  const players = gameData.players || {};
+  const awards = gameData.longestPathAwards || {};
+  const scores = Object.entries(players).map(([pid, p]) => {
+    const routePts = routePointsFor(p);
+    const ticketPts = ticketPointsFromRevealed(pid);
+    const stationPts = stationBonusFor(p);
+    const longestPts = awards[pid] ? 10 : 0;
+    return { pid, name: p.name, routePts, ticketPts, stationPts, longestPts, total: routePts + ticketPts + stationPts + longestPts };
+  }).sort((a, b) => b.total - a.total);
+  const topScore = scores.length ? scores[0].total : null;
+  document.getElementById("finalScoresList").innerHTML = scores.map(s => `
+    <div style="margin-bottom:12px">
+      <div class="final-row"><strong>${escapeHtml(s.name)}${s.total === topScore ? " 🏆" : ""}</strong><span class="final-total">${s.total}</span></div>
+      <div class="final-row"><span>Routes</span><span>${s.routePts}</span></div>
+      <div class="final-row"><span>Tickets</span><span>${s.ticketPts}</span></div>
+      <div class="final-row"><span>Stations</span><span>${s.stationPts}</span></div>
+      <div class="final-row"><span>Longest Path</span><span>${s.longestPts}</span></div>
+    </div>
+  `).join("");
+}
+</script>
+</body>
+</html>
